@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XMB Waves</title>
+    <link rel="stylesheet" href="./style.css">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <script src="./shaders.js"></script>
+    <script src="./script.js" defer></script>
+</head>
+<body>
+    <main>
+        <canvas id="webgl-canvas"></canvas>
+
+        <button id="settings-btn" aria-label="Open Settings">
+            <i class="bi bi-gear-fill"></i>
+        </button>
+
+        <aside id="settings-sidebar">
+            <div class="sidebar-content">
+
+                <div class="settings-group">
+                    <div class="style-list">
+                        <button class="style-btn" data-value="1">Classic</button>
+                        <button class="style-btn" data-value="0">Waves</button>
+                        <button class="style-btn" data-value="2">PS3</button>
+                    </div>
+                </div>
+
+                <div class="separator"></div>
+
+                <div class="settings-group">
+                    <div id="color-grid"></div>
+                </div>
+
+                <div class="separator"></div>
+
+                <div class="settings-group">
+                    <div class="header-row">
+                        <span>Time of Day</span>
+
+                        <label class="auto-toggle">
+                            <input type="checkbox" id="auto-brightness-check" checked>
+                            <span>Auto</span>
+                        </label>
+                    </div>
+
+                    <div class="slider-container">
+                        <input type="range" id="brightness-slider" min="0" max="23" step="1" value="12" disabled>
+                        <div id="time-display">12:00</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+</body>
+</html>
