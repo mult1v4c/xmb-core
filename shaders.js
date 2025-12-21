@@ -128,14 +128,11 @@ float calcComplexSine(vec2 uv, float speed, float frequency, float amplitude, fl
     return pow(smoothVal, sharpness);
 }
 
-// --- CLASSIC ---
+// --- CLASSIC (SUBTLE RIPPLES) ---
 vec3 calcClassicWaves(vec2 uv, vec3 themeColor) {
     float baseY = 0.5;
     vec3 accColor = vec3(0.0);
 
-    // SMART DIMMER:
-    // Check how bright the theme is.
-    // If > 1.2 (like Silver), drop the boost. If dark, increase it.
     float brightness = length(themeColor);
     float boost = (brightness > 1.2) ? 0.8 : 1.2;
 
@@ -144,31 +141,38 @@ vec3 calcClassicWaves(vec2 uv, vec3 themeColor) {
 
     for (float i = 0.0; i < 2.0; i++) {
         float t = uTime;
-        float wave = sin((uv.x - t * 0.08) * 2.0 + (i * 1.5)) * 0.06;
-        float waveY = baseY + (0.05 * i) + wave;
 
+        // 1. DYNAMIC AMPLITUDE
+        float ampNoise = sin(t * 0.3) + sin(t * 0.1);
+        float currentAmp = 0.15 + (ampNoise * 0.10) + (i * 0.01);
+
+        // 2. PHASE OFFSET
+        float offset = i * 0.3;
+
+        // 3. SURFACE RIPPLES (Adjusted)
+        // Reduced frequency to 6.0 (wider bumps)
+        // Reduced amplitude to 0.002 (barely visible)
+        float surfaceWave = sin((uv.x - t * 0.1) * 6.0 + (i * 5.0)) * 0.002;
+
+        // 4. MAIN WAVE
+        float mainWave = sin((uv.x - t * 0.08) * 2.0 + offset) * currentAmp;
+
+        // Combine: Main + Subtle Ripple
+        float waveY = baseY + mainWave + surfaceWave;
+
+        // 5. RENDERING
         float edgeSoftness = 0.004;
         float mask = smoothstep(waveY + edgeSoftness, waveY, uv.y);
 
-        // Distance factor: 0.0 at the top of the wave, 1.0 at the bottom of the screen
         float gradFactor = clamp((waveY - uv.y) / waveY, 0.0, 1.0);
-
-        // --- NEW FADE LOGIC ---
-        // Invert gradFactor so we get 1.0 at top and 0.0 at bottom.
-        // pow() makes it fade smoothly but preserves the "body" near the crisp edge.
         float fade = pow(1.0 - gradFactor, 2.0);
 
         vec3 wCol = mix(waveColorTop, waveColorBottom, gradFactor);
 
-        // Rim Light (Always bright white for glass edge)
         float rim = smoothstep(waveY + edgeSoftness, waveY, uv.y) * smoothstep(waveY - 0.003, waveY, uv.y);
         vec3 finalWave = wCol + (vec3(1.0) * rim * 0.6);
 
-        // Alpha Mix:
-        // Use a lower alpha (0.25) if bright, higher (0.5) if dark
         float alpha = (brightness > 1.2) ? 0.25 : 0.5;
-
-        // Multiply by the new fade factor
         accColor += finalWave * mask * alpha * fade;
     }
     return accColor;
