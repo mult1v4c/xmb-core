@@ -6,6 +6,28 @@
     user-select: none;
 }
 
+:root {
+    /* --- UNIFIED MENU VARIABLES --- */
+    /* Dimensions */
+    --item-padding-y: 0.4rem;
+    --item-padding-x: 0.8rem;
+    --item-hover-indent: 1rem;      /* How far it slides right */
+    --preview-size: 1.8rem;         /* Size of the color square */
+
+    /* Calculated Height: Ensures text-only items match image items exactly */
+    --item-min-height: calc(var(--preview-size) + (var(--item-padding-y) * 2));
+
+    /* Colors */
+    --text-dim: rgba(255, 255, 255, 0.6);
+    --text-lit: #fff;
+    --bg-hover: rgba(255, 255, 255, 0.08);
+    --bg-active: rgba(255, 255, 255, 0.15);
+
+    /* Transitions */
+    --anim-speed: 0.2s;
+    --anim-curve: ease;
+}
+
 @font-face {
     font-family: 'Rodin Pro DB';
     src: url('./assets/Rodin Pro DB.otf') format('opentype');
@@ -55,7 +77,7 @@ body {
 
 #settings-btn.open {
     right: 1.5rem;
-    transform: translateX(-250px);
+    transform: translateX(-240px);
     color: #fff;
 }
 
@@ -64,10 +86,10 @@ body {
     position: fixed;
     top: 0;
     right: 0;
-    width: 250px;
+    width: 240px;
     height: 100vh;
     z-index: 19;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-left: 1px solid rgba(255, 255, 255, 0.08);
@@ -86,57 +108,17 @@ body {
     gap: 1rem;
 }
 
-/* --- STYLE LIST --- */
-.style-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    margin: 0 -1.5rem;
-}
-
-.style-btn {
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 1rem;
-    text-align: left;
-    padding: 0.2rem 0.8rem;
-    cursor: pointer;
-    font-family: inherit;
-    font-weight: 300;
-    transition: all 0.2s ease;
-    border-left: 3px solid transparent;
-    text-shadow: 4px 4px 16px rgba(0, 0, 0, 0.7);
-}
-
-.style-btn:hover {
-    color: #fff;
-    background-color: rgba(255, 255, 255, 0.08);
-    padding-left: 1rem;
-}
-
-.style-btn.active {
-    color: #fff;
-    background-color: rgba(255, 255, 255, 0.15);
-    border-left: 3px solid #fff;
-    padding-left: 1rem;
-    font-weight: 500;
-    text-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
-}
-
-.separator {
-    width: auto;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.1);
-    margin: 0.5rem -1.5rem;
-}
-
-/* --- COLOR LIST --- */
+/* --- UNIFIED ITEM LISTS --- */
+.style-list,
 #color-grid {
     display: flex;
     flex-direction: column;
     gap: 0;
-    margin: 0 -1.5rem;
+    margin: 0 -1.5rem; /* Negative margin to span full width of sidebar padding */
+}
+
+/* Scrollable area for color grid */
+#color-grid {
     overflow-y: auto;
     max-height: calc(100vh - 200px);
     scrollbar-width: none;
@@ -145,29 +127,61 @@ body {
     display: none;
 }
 
-.color-row {
+.separator {
+    width: 240px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin-left: -1.5rem;
+}
+
+/* --- UNIFIED MENU ITEM --- */
+/* Replaces both .style-btn and .color-row */
+.menu-item {
+    /* Layout */
     display: flex;
     align-items: center;
-    padding: 0.4rem 1.5rem; /* Increased vertical padding for better touch targets */
-    cursor: pointer;
-    transition: all 0.2s ease;
+    width: 100%;
+    min-height: var(--item-min-height); /* ENFORCES UNIFORM HEIGHT */
+    padding: var(--item-padding-y) var(--item-padding-x);
+
+    /* Typography */
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 300;
+    text-align: left;
+    color: var(--text-dim);
+    text-shadow: 4px 4px 16px rgba(0, 0, 0, 0.7);
+
+    /* Base Styles */
+    background: transparent;
+    border: none;
     border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: all var(--anim-speed) var(--anim-curve);
 }
 
-.color-row:hover {
-    background-color: rgba(255, 255, 255, 0.08);
+/* Hover State */
+.menu-item:hover {
+    color: var(--text-lit);
+    background-color: var(--bg-hover);
+    padding-left: var(--item-hover-indent);
 }
 
-.color-row.active {
-    background-color: rgba(255, 255, 255, 0.15);
-    border-left: 3px solid #fff;
+/* Active State */
+.menu-item.active {
+    color: var(--text-lit);
+    background-color: var(--bg-active);
+    border-left: 3px solid var(--text-lit);
+    padding-left: var(--item-hover-indent);
+    font-weight: 500;
 }
 
+/* --- COLOR PREVIEW BOX --- */
 .color-preview {
-    width: 32px; /* Made slightly larger since it's the only UI element now */
-    height: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 4px 4px 16px rgba(0,0,0,0.7);
+    width: var(--preview-size);
+    height: var(--preview-size);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.5);
     flex-shrink: 0;
     background-color: #333;
 }

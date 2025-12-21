@@ -196,7 +196,7 @@ if (settingsBtn && settingsSidebar) {
 }
 
 // 2. Style List Logic
-const styleBtns = document.querySelectorAll('.style-btn');
+const styleBtns = document.querySelectorAll('.style-list .menu-item');
 
 function updateStyleSelection() {
     styleBtns.forEach(btn => {
@@ -223,19 +223,10 @@ function initColorGrid() {
 
     // --- A. Create "Automatic" Row (The Multi-Color Option) ---
     const autoBtn = document.createElement('div');
-    autoBtn.className = 'color-row';
+    autoBtn.className = 'menu-item';
     autoBtn.dataset.type = 'auto'; // Helper for selection logic
 
-    const autoPreview = document.createElement('div');
-    autoPreview.className = 'color-preview';
-    // Authentic PSP Auto icon often looks like a rainbow or metallic sheen
-    autoPreview.style.background = "linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #a1c4fd 100%)";
-    // Optional: Add a small star/magic icon inside?
-    // autoPreview.innerHTML = '<i class="bi bi-stars" style="color:white; font-size: 0.8rem;"></i>';
-    // autoPreview.style.display = 'grid';
-    // autoPreview.style.placeContent = 'center';
-
-    autoBtn.appendChild(autoPreview);
+    autoBtn.textContent = "By Month";
 
     autoBtn.addEventListener('click', () => {
         isAutoMonth = true;
@@ -251,7 +242,7 @@ function initColorGrid() {
     // --- B. Create Standard Color Rows (1 to 34) ---
     for (let i = 1; i <= totalBackgrounds; i++) {
         const btn = document.createElement('div');
-        btn.className = 'color-row';
+        btn.className = 'menu-item';
         btn.dataset.index = i;
 
         const preview = document.createElement('div');
@@ -277,16 +268,14 @@ function initColorGrid() {
 }
 
 function updateGridSelection() {
-    // Clear all
-    document.querySelectorAll('.color-row').forEach(btn => btn.classList.remove('active'));
+    const gridItems = document.querySelectorAll('#color-grid .menu-item');
+    gridItems.forEach(btn => btn.classList.remove('active'));
 
     if (isAutoMonth) {
-        // Highlight the Auto button
-        const autoBtn = document.querySelector('.color-row[data-type="auto"]');
+        const autoBtn = document.querySelector('#color-grid .menu-item[data-type="auto"]');
         if (autoBtn) autoBtn.classList.add('active');
     } else {
-        // Highlight the specific color
-        const activeBtn = document.querySelector(`.color-row[data-index="${currentBgIndex}"]`);
+        const activeBtn = document.querySelector(`#color-grid .menu-item[data-index="${currentBgIndex}"]`);
         if (activeBtn) activeBtn.classList.add('active');
     }
 }
