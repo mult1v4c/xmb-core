@@ -25,7 +25,11 @@ let loadedBgIndex = -1;
 // State
 let currentBgIndex = 1;
 let waveStyle = 0;
-let isAutoMonth = true; // Default to Auto on load
+let isAutoMonth = true;
+
+// Dynamic Color State
+let currentThemeColor = [1.0, 1.0, 1.0]; // Default White
+let currentBrightnessBoost = 1.0;        // Default Normal
 
 // Mouse State
 let mouse = { x: 0, y: 0 };
@@ -59,9 +63,60 @@ function compileShader(source, type) {
     return shader;
 }
 
+// --- COLOR ANALYSIS HELPER ---
+function analyzeImageColor(image) {
+    // 1. Create a tiny canvas to draw the image
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+
+    // We use a small size (e.g., 50x50) to get a decent average
+    // without processing millions of pixels.
+    tempCanvas.width = 50;
+    tempCanvas.height = 50;
+
+    ctx.drawImage(image, 0, 0, 50, 50);
+
+    const data = ctx.getImageData(0, 0, 50, 50).data;
+    let r = 0, g = 0, b = 0;
+    const pixelCount = 50 * 50;
+
+    for (let i = 0; i < data.length; i += 4) {
+        r += data[i];
+        g += data[i + 1];
+        b += data[i + 2];
+    }
+
+    // 2. Average RGB (0.0 to 1.0)
+    const avgR = (r / pixelCount) / 255;
+    const avgG = (g / pixelCount) / 255;
+    const avgB = (b / pixelCount) / 255;
+
+    // 3. Calculate Luminance (Perceived brightness)
+    // Formula: 0.299R + 0.587G + 0.114B
+    const luminance = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
+
+    // 4. Auto-Adjust Brightness
+    // If the image is very dark (low luminance), we boost the brightness.
+    // If it's bright, we stick to 1.0.
+    // Example: If luminance is 0.2, we might want 1.5x brightness.
+
+    let boost = 1.0;
+    if (luminance < 0.4) {
+        // Simple inverse scaling: darker images get more boost
+        // Cap it at 2.0x to prevent washout
+        boost = 1.0 + (0.5 - luminance) * 2.0;
+    }
+
+    return {
+        color: [avgR, avgG, avgB],
+        brightness: boost
+    };
+}
+
 function loadTexture(gl, url) {
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
+    // Placeholder while loading
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]));
 
     const image = new Image();
@@ -72,6 +127,13 @@ function loadTexture(gl, url) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        // --- RUN AUTO COLOR ANALYSIS ---
+        const analysis = analyzeImageColor(image);
+        currentThemeColor = analysis.color;
+        currentBrightnessBoost = analysis.brightness;
+
+        console.log(`Loaded BG. Color: [${currentThemeColor}], Brightness Boost: ${currentBrightnessBoost}`);
     };
     image.src = url;
     return texture;
@@ -117,6 +179,10 @@ function initializeWebGL() {
 function updateBackground(index) {
     if (loadedBgIndex === index) return;
 
+    // Wrap around logic just in case
+    if (index > totalBackgrounds) index = 1;
+    if (index < 1) index = totalBackgrounds;
+
     const bgStr = index.toString().padStart(2, '0');
     const url = `${texturePath}bg_${bgStr}.bmp`;
 
@@ -131,15 +197,12 @@ function renderFrame(timeMs) {
     mouse.x += (targetMouse.x - mouse.x) * 0.05;
     mouse.y += (targetMouse.y - mouse.y) * 0.05;
 
-    // --- AUTO DATE LOGIC ---
+    // --- AUTO MONTH LOGIC ---
     if (isAutoMonth) {
         const date = new Date();
         const monthIndex = date.getMonth() + 1; // 1-12
-
         if (currentBgIndex !== monthIndex) {
             currentBgIndex = monthIndex;
-            // No UI update here to avoid infinite loops/visual flickering,
-            // but the texture will update below.
         }
     }
 
@@ -161,9 +224,15 @@ function renderFrame(timeMs) {
         context.uniform1i(nightTextureLocation, 1);
     }
 
-    context.uniform1f(timeMixLocation, 0.0);
-    context.uniform1f(brightnessLocation, 1.0);
-    context.uniform3f(colorFilterLocation, 1.0, 1.0, 1.0);
+    // --- UNIFORM UPDATES ---
+    context.uniform1f(timeMixLocation, 0.0); // Always "Day" (No mixing)
+
+    // Apply the auto-calculated brightness boost
+    context.uniform1f(brightnessLocation, currentBrightnessBoost);
+
+    // Apply the auto-calculated average color tint
+    context.uniform3f(colorFilterLocation, currentThemeColor[0], currentThemeColor[1], currentThemeColor[2]);
+
     context.uniform1i(waveStyleLocation, waveStyle);
 
     context.drawArrays(context.TRIANGLE_STRIP, 0, 4);
@@ -180,11 +249,8 @@ if (settingsBtn && settingsSidebar) {
     settingsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const isOpen = settingsSidebar.classList.toggle('open');
-        if (isOpen) {
-            settingsBtn.classList.add('open');
-        } else {
-            settingsBtn.classList.remove('open');
-        }
+        if (isOpen) settingsBtn.classList.add('open');
+        else settingsBtn.classList.remove('open');
     });
 
     window.addEventListener('click', (e) => {
@@ -197,7 +263,6 @@ if (settingsBtn && settingsSidebar) {
 
 // 2. Style List Logic
 const styleBtns = document.querySelectorAll('.style-list .menu-item');
-
 function updateStyleSelection() {
     styleBtns.forEach(btn => {
         btn.classList.remove('active');
@@ -206,7 +271,6 @@ function updateStyleSelection() {
         }
     });
 }
-
 styleBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
         waveStyle = parseInt(e.target.dataset.value, 10);
@@ -221,25 +285,23 @@ function initColorGrid() {
     if (!colorGrid) return;
     colorGrid.innerHTML = '';
 
-    // --- A. Create "Automatic" Row (The Multi-Color Option) ---
+    // A. "Automatic" Button
     const autoBtn = document.createElement('div');
     autoBtn.className = 'menu-item';
-    autoBtn.dataset.type = 'auto'; // Helper for selection logic
-
+    autoBtn.dataset.type = 'auto';
     autoBtn.textContent = "By Month";
 
     autoBtn.addEventListener('click', () => {
         isAutoMonth = true;
-        // Trigger an immediate update
+        // Trigger immediate update
         const date = new Date();
         currentBgIndex = date.getMonth() + 1;
         updateGridSelection();
     });
-
     colorGrid.appendChild(autoBtn);
 
 
-    // --- B. Create Standard Color Rows (1 to 34) ---
+    // B. Background Buttons (1 to 34)
     for (let i = 1; i <= totalBackgrounds; i++) {
         const btn = document.createElement('div');
         btn.className = 'menu-item';

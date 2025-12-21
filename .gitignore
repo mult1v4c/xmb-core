@@ -1,3 +1,4 @@
 .venv
+.dump
 *.py
 *.ps1
