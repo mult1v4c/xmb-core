@@ -10,67 +10,26 @@ if (!context) {
 }
 
 // --- CONFIGURATION ---
-const texturePath = "./assets/textures/";
-
-// --- DATA TABLES ---
-
-// [UPDATED] Authentic Brightness Values from PS3 Dev Wiki
-// Converted from Hex table: 00h (#1e1e1e) to 23h (#2d2d2d)
-const brightnessTable = [
-    0.118, // 00:00 (Night)
-    0.059, // 01:00
-    0.000, // 02:00 (Darkest Point - texture swap happens here)
-    0.122, // 03:00 (Sunrise start)
-    0.243, // 04:00
-    0.365, // 05:00
-    0.486, // 06:00
-    0.608, // 07:00
-    0.729, // 08:00
-    0.851, // 09:00
-    0.973, // 10:00 (Peak Brightness)
-    0.882, // 11:00
-    0.824, // 12:00
-    0.765, // 13:00
-    0.706, // 14:00
-    0.647, // 15:00
-    0.588, // 16:00
-    0.529, // 17:00 (Day ends)
-    0.471, // 18:00 (Night starts)
-    0.412, // 19:00
-    0.353, // 20:00
-    0.294, // 21:00
-    0.235, // 22:00
-    0.176  // 23:00
-];
-
-const monthColors = {
-    1:  [0.80, 0.80, 0.80], 2:  [0.85, 0.75, 0.10], 3:  [0.42, 0.70, 0.09],
-    4:  [0.88, 0.49, 0.60], 5:  [0.09, 0.53, 0.08], 6:  [0.60, 0.38, 0.78],
-    7:  [0.01, 0.80, 0.78], 8:  [0.05, 0.46, 0.75], 9:  [0.70, 0.27, 0.75],
-    10: [0.90, 0.65, 0.03], 11: [0.53, 0.35, 0.12], 12: [0.89, 0.25, 0.16]
-};
+const texturePath = "./assets/textures/PSP/";
+const totalBackgrounds = 34;
 
 // --- GLOBALS ---
 let shaderProgram;
-// Locations
 let timeUniformLocation, resolutionUniformLocation, dayTextureLocation,
     nightTextureLocation, timeMixLocation, brightnessLocation,
     colorFilterLocation, waveStyleLocation, mouseUniformLocation;
 
-let currentDayTexture, currentNightTexture;
-let loadedMonth = -1;
+let currentTexture;
+let loadedBgIndex = -1;
 
 // State
-let overrideMonth = 8; // Default to Blue
-let waveStyle = 0; // Default to Waves
+let currentBgIndex = 1;
+let waveStyle = 0;
+let isAutoMonth = true; // Default to Auto on load
 
 // Mouse State
 let mouse = { x: 0, y: 0 };
 let targetMouse = { x: 0, y: 0 };
-
-// Brightness State
-let isAutoBrightness = true;
-let manualHour = 12; // Default to Noon
 
 // --- RESIZE ---
 function resizeCanvas() {
@@ -104,6 +63,7 @@ function loadTexture(gl, url) {
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]));
+
     const image = new Image();
     image.onload = function() {
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -154,76 +114,56 @@ function initializeWebGL() {
     requestAnimationFrame(renderFrame);
 }
 
-function updateTexturesForMonth(monthIndex) {
-    if (loadedMonth === monthIndex) return;
-    const monthStr = monthIndex.toString().padStart(2, '0');
-    currentDayTexture = loadTexture(context, `${texturePath}day_${monthStr}.png`);
-    currentNightTexture = loadTexture(context, `${texturePath}night_${monthStr}.png`);
-    loadedMonth = monthIndex;
+function updateBackground(index) {
+    if (loadedBgIndex === index) return;
+
+    const bgStr = index.toString().padStart(2, '0');
+    const url = `${texturePath}bg_${bgStr}.bmp`;
+
+    currentTexture = loadTexture(context, url);
+    loadedBgIndex = index;
 }
 
 // --- RENDER ---
 function renderFrame(timeMs) {
     context.clear(context.COLOR_BUFFER_BIT);
 
-    // Smooth Mouse
     mouse.x += (targetMouse.x - mouse.x) * 0.05;
     mouse.y += (targetMouse.y - mouse.y) * 0.05;
 
-    const date = new Date();
-    let month = (overrideMonth > 0) ? overrideMonth : date.getMonth() + 1;
-    const sysHour = date.getHours();
+    // --- AUTO DATE LOGIC ---
+    if (isAutoMonth) {
+        const date = new Date();
+        const monthIndex = date.getMonth() + 1; // 1-12
 
-    updateTexturesForMonth(month);
-
-    // --- TIME OF DAY LOGIC ---
-    let targetHour;
-
-    if (isAutoBrightness) {
-        targetHour = sysHour;
-
-        // Sync slider UI to real time
-        const slider = document.getElementById('brightness-slider');
-        const display = document.getElementById('time-display');
-        if (slider && display) {
-            slider.value = targetHour;
-            display.textContent = `${targetHour.toString().padStart(2, '0')}:00`;
+        if (currentBgIndex !== monthIndex) {
+            currentBgIndex = monthIndex;
+            // No UI update here to avoid infinite loops/visual flickering,
+            // but the texture will update below.
         }
-    } else {
-        targetHour = manualHour;
     }
 
-    // 1. Get Brightness from Authentic Wiki Table
-    const brightness = brightnessTable[targetHour];
+    updateBackground(currentBgIndex);
 
-    // 2. Determine Day/Night Texture
-    // Wiki: Night ends at 02:59, Day starts 03:00. Day ends 17:59.
-    let timeMix;
-    if (targetHour >= 3 && targetHour < 18) {
-        timeMix = 0.0; // Day
-    } else {
-        timeMix = 1.0; // Night
-    }
-
-    const colorFilter = monthColors[month] || [1.0, 1.0, 1.0];
     const timeSec = timeMs * 0.001;
 
-    // Uniforms
     context.uniform1f(timeUniformLocation, timeSec);
     context.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
     context.uniform2f(mouseUniformLocation, mouse.x, mouse.y);
 
-    context.activeTexture(context.TEXTURE0);
-    context.bindTexture(context.TEXTURE_2D, currentDayTexture);
-    context.uniform1i(dayTextureLocation, 0);
+    if (currentTexture) {
+        context.activeTexture(context.TEXTURE0);
+        context.bindTexture(context.TEXTURE_2D, currentTexture);
+        context.uniform1i(dayTextureLocation, 0);
 
-    context.activeTexture(context.TEXTURE1);
-    context.bindTexture(context.TEXTURE_2D, currentNightTexture);
-    context.uniform1i(nightTextureLocation, 1);
+        context.activeTexture(context.TEXTURE1);
+        context.bindTexture(context.TEXTURE_2D, currentTexture);
+        context.uniform1i(nightTextureLocation, 1);
+    }
 
-    context.uniform1f(timeMixLocation, timeMix);
-    context.uniform1f(brightnessLocation, brightness);
-    context.uniform3f(colorFilterLocation, colorFilter[0], colorFilter[1], colorFilter[2]);
+    context.uniform1f(timeMixLocation, 0.0);
+    context.uniform1f(brightnessLocation, 1.0);
+    context.uniform3f(colorFilterLocation, 1.0, 1.0, 1.0);
     context.uniform1i(waveStyleLocation, waveStyle);
 
     context.drawArrays(context.TRIANGLE_STRIP, 0, 4);
@@ -239,9 +179,7 @@ const settingsSidebar = document.getElementById('settings-sidebar');
 if (settingsBtn && settingsSidebar) {
     settingsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-
         const isOpen = settingsSidebar.classList.toggle('open');
-
         if (isOpen) {
             settingsBtn.classList.add('open');
         } else {
@@ -276,70 +214,59 @@ styleBtns.forEach(btn => {
     });
 });
 
-
-// 3. Color List Logic
+// 3. Color Grid Logic
 const colorGrid = document.getElementById('color-grid');
-
-// Detailed Names matching authentic XMB colors
-const monthLabels = [
-    "Automatic",
-    "January (Silver)",
-    "February (Gold)",
-    "March (Light Green)",
-    "April (Pink)",
-    "May (Emerald)",
-    "June (Purple)",
-    "July (Cyan)",
-    "August (Blue)",
-    "September (Violet)",
-    "October (Orange)",
-    "November (Brown)",
-    "December (Red)"
-];
 
 function initColorGrid() {
     if (!colorGrid) return;
     colorGrid.innerHTML = '';
 
-    for (let i = 0; i <= 12; i++) {
-        // Container Row (The clickable button)
-        const btn = document.createElement('div');
-        btn.className = 'color-row'; // Changed class name for clarity
-        btn.dataset.month = i;
+    // --- A. Create "Automatic" Row (The Multi-Color Option) ---
+    const autoBtn = document.createElement('div');
+    autoBtn.className = 'color-row';
+    autoBtn.dataset.type = 'auto'; // Helper for selection logic
 
-        // 1. The Preview Box (Left side)
+    const autoPreview = document.createElement('div');
+    autoPreview.className = 'color-preview';
+    // Authentic PSP Auto icon often looks like a rainbow or metallic sheen
+    autoPreview.style.background = "linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #a1c4fd 100%)";
+    // Optional: Add a small star/magic icon inside?
+    // autoPreview.innerHTML = '<i class="bi bi-stars" style="color:white; font-size: 0.8rem;"></i>';
+    // autoPreview.style.display = 'grid';
+    // autoPreview.style.placeContent = 'center';
+
+    autoBtn.appendChild(autoPreview);
+
+    autoBtn.addEventListener('click', () => {
+        isAutoMonth = true;
+        // Trigger an immediate update
+        const date = new Date();
+        currentBgIndex = date.getMonth() + 1;
+        updateGridSelection();
+    });
+
+    colorGrid.appendChild(autoBtn);
+
+
+    // --- B. Create Standard Color Rows (1 to 34) ---
+    for (let i = 1; i <= totalBackgrounds; i++) {
+        const btn = document.createElement('div');
+        btn.className = 'color-row';
+        btn.dataset.index = i;
+
         const preview = document.createElement('div');
         preview.className = 'color-preview';
 
-        if (i === 0) {
-            // Auto Icon
-            preview.style.background = "linear-gradient(135deg, #555, #999)";
-            preview.innerHTML = '<i class="bi bi-magic" style="color:white; font-size: 0.8rem;"></i>';
-            preview.style.display = 'grid';
-            preview.style.placeContent = 'center';
-        } else {
-            // Texture Preview
-            const monthStr = i.toString().padStart(2, '0');
-            preview.style.backgroundImage = `url('${texturePath}day_${monthStr}.png')`;
-            preview.style.backgroundSize = 'cover';
+        const bgStr = i.toString().padStart(2, '0');
+        preview.style.backgroundImage = `url('${texturePath}bg_${bgStr}.bmp')`;
+        preview.style.backgroundSize = 'cover';
 
-            // Fallback Color
-            const c = monthColors[i];
-            preview.style.backgroundColor = `rgb(${c[0]*255}, ${c[1]*255}, ${c[2]*255})`;
-        }
-
-        // 2. The Text Label (Right side)
-        const label = document.createElement('span');
-        label.className = 'color-label';
-        label.textContent = monthLabels[i];
-
-        // Assemble
         btn.appendChild(preview);
-        btn.appendChild(label);
 
-        // Click Handler
         btn.addEventListener('click', () => {
-            setTheme(i);
+            isAutoMonth = false;
+            currentBgIndex = i;
+            updateGridSelection();
         });
 
         colorGrid.appendChild(btn);
@@ -349,47 +276,19 @@ function initColorGrid() {
     updateStyleSelection();
 }
 
-function setTheme(monthIndex) {
-    overrideMonth = monthIndex;
-    loadedMonth = -1;
-    updateGridSelection();
-}
-
 function updateGridSelection() {
-    // Update active class on the ROW
+    // Clear all
     document.querySelectorAll('.color-row').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.querySelector(`.color-row[data-month="${overrideMonth}"]`);
-    if (activeBtn) activeBtn.classList.add('active');
-}
 
-// 4. Time/Brightness Logic
-const autoCheck = document.getElementById('auto-brightness-check');
-const brightSlider = document.getElementById('brightness-slider');
-const timeDisplay = document.getElementById('time-display');
-
-if (autoCheck && brightSlider) {
-    // Checkbox Toggle
-    autoCheck.addEventListener('change', (e) => {
-        isAutoBrightness = e.target.checked;
-        brightSlider.disabled = isAutoBrightness;
-
-        if (isAutoBrightness) {
-            brightSlider.classList.add('disabled');
-        } else {
-            brightSlider.classList.remove('disabled');
-            // When switching to manual, set manualHour to current slider value
-            manualHour = parseInt(brightSlider.value, 10);
-        }
-    });
-
-    // Slider Input (Dragging)
-    brightSlider.addEventListener('input', (e) => {
-        manualHour = parseInt(e.target.value, 10);
-        // Update text immediately for feedback
-        if (timeDisplay) {
-            timeDisplay.textContent = `${manualHour.toString().padStart(2, '0')}:00`;
-        }
-    });
+    if (isAutoMonth) {
+        // Highlight the Auto button
+        const autoBtn = document.querySelector('.color-row[data-type="auto"]');
+        if (autoBtn) autoBtn.classList.add('active');
+    } else {
+        // Highlight the specific color
+        const activeBtn = document.querySelector(`.color-row[data-index="${currentBgIndex}"]`);
+        if (activeBtn) activeBtn.classList.add('active');
+    }
 }
 
 // --- INIT ---
