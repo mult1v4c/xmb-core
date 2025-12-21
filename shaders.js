@@ -113,7 +113,7 @@ vec2 raymarch(vec3 o, vec3 d, float omega) {
     return vec2(a, max(1.0 - g, 0.0));
 }
 
-// --- WAVES ---
+// --- CLASSIC ---
 float calcComplexSine(vec2 uv, float speed, float frequency, float amplitude, float phaseShift, float verticalOffset, float lineWidth, float sharpness, bool invertFalloff) {
     float angle = uTime * speed * frequency * -1.0 + (phaseShift + uv.x) * 2.0;
     float waveY = sin(angle) * amplitude + verticalOffset;
@@ -128,8 +128,8 @@ float calcComplexSine(vec2 uv, float speed, float frequency, float amplitude, fl
     return pow(smoothVal, sharpness);
 }
 
-// --- CLASSIC (SUBTLE RIPPLES) ---
-vec3 calcClassicWaves(vec2 uv, vec3 themeColor) {
+// --- ORIGINAL ---
+vec3 calcOriginalWaves(vec2 uv, vec3 themeColor) {
     float baseY = 0.5;
     vec3 accColor = vec3(0.0);
 
@@ -169,8 +169,7 @@ vec3 calcClassicWaves(vec2 uv, vec3 themeColor) {
 
         vec3 wCol = mix(waveColorTop, waveColorBottom, gradFactor);
 
-        float rim = smoothstep(waveY + edgeSoftness, waveY, uv.y) * smoothstep(waveY - 0.003, waveY, uv.y);
-        vec3 finalWave = wCol + (vec3(1.0) * rim * 0.6);
+        vec3 finalWave = wCol;
 
         float alpha = (brightness > 1.2) ? 0.25 : 0.5;
         accColor += finalWave * mask * alpha * fade;
@@ -201,7 +200,7 @@ void main() {
         finalColor += (vec3(1.0) * intensity * 0.5);
     }
     else if (uWaveStyle == 1) {
-        finalColor += calcClassicWaves(uv, uColorFilter);
+        finalColor += calcOriginalWaves(uv, uColorFilter);
     }
 
     else if (uWaveStyle == 2) {
