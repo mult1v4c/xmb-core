@@ -150,8 +150,14 @@ vec3 calcClassicWaves(vec2 uv, vec3 themeColor) {
         float edgeSoftness = 0.004;
         float mask = smoothstep(waveY + edgeSoftness, waveY, uv.y);
 
-        // This gradient makes the body visible
+        // Distance factor: 0.0 at the top of the wave, 1.0 at the bottom of the screen
         float gradFactor = clamp((waveY - uv.y) / waveY, 0.0, 1.0);
+
+        // --- NEW FADE LOGIC ---
+        // Invert gradFactor so we get 1.0 at top and 0.0 at bottom.
+        // pow() makes it fade smoothly but preserves the "body" near the crisp edge.
+        float fade = pow(1.0 - gradFactor, 2.0);
+
         vec3 wCol = mix(waveColorTop, waveColorBottom, gradFactor);
 
         // Rim Light (Always bright white for glass edge)
@@ -162,7 +168,8 @@ vec3 calcClassicWaves(vec2 uv, vec3 themeColor) {
         // Use a lower alpha (0.25) if bright, higher (0.5) if dark
         float alpha = (brightness > 1.2) ? 0.25 : 0.5;
 
-        accColor += finalWave * mask * alpha;
+        // Multiply by the new fade factor
+        accColor += finalWave * mask * alpha * fade;
     }
     return accColor;
 }
