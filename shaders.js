@@ -143,7 +143,7 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
     float opacityBottom     = 0.0;   // Opacity at the bottom of the gradient
     float waveIntensity     = 1.5;   // Brightness multiplier for the wave color
     float edgeSoftness      = 0.004; // Antialiasing for the wave edge
-    float colorShadowFactor = 0.0;   // How dark the bottom color gets (0.0 = Black/None)
+    float colorShadowFactor = 0.5;   // How dark the bottom color gets (0.0 = Black/None)
 
     // --- MAIN WAVE PHYSICS ---
     float mainWaveFreq      = 3.2;   // "Width" of the wave (3.2 fits ~1 hump on screen)
@@ -168,8 +168,8 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
     vec3 currentBackground = bg;
 
     // Determine Wave Color
-    // 0 = Use Theme Color, 1 = Use Pure White
-    vec3 baseWaveColor = (uEnableBgTint == 0) ? themeColor : vec3(1.0);
+    // 1 = Use Theme Color, 0 = Use Pure White
+    vec3 baseWaveColor = (uEnableBgTint == 1) ? themeColor : vec3(1.0);
 
     float brightness = length(baseWaveColor);
     float themeBoost = (brightness > 1.2) ? 0.8 : 1.2;

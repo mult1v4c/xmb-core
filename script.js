@@ -27,7 +27,7 @@ let loadedBgIndex = -1;
 let currentBgIndex = 1;
 let waveStyle = 1; // Default to Original (PSP)
 let isAutoMonth = true;
-let enableBgTint = 0; // 0 = Use Theme Color, 1 = Pure White (Matches your Shader logic)
+let enableBgTint = 1; // 1 = Use Theme Color, 0 = Pure White (Matches your Shader logic)
 
 // Dynamic Color State
 let currentThemeColor = [1.0, 1.0, 1.0]; // Default White
@@ -212,7 +212,7 @@ function renderFrame(timeMs) {
     context.uniform3f(colorFilterLocation, currentThemeColor[0], currentThemeColor[1], currentThemeColor[2]);
     context.uniform1i(waveStyleLocation, waveStyle);
 
-    // Pass the Tint Enable Flag (0=ThemeColor, 1=White)
+    // Pass the Tint Enable Flag (1=ThemeColor, 0=White)
     context.uniform1i(bgTintLocation, enableBgTint);
 
     context.drawArrays(context.TRIANGLE_STRIP, 0, 4);
