@@ -173,19 +173,33 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
         float t = uTime;
 
         // A. Geometry & Movement
-        // Adjusted to prevent the wave from flattening out completely
-        float ampNoise = sin(t * 0.3) + sin(t * 0.45);
 
-        // Base amplitude raised to 0.18.
-        // Noise multiplier reduced to 0.06.
-        // Even if ampNoise is -2.0, result is 0.18 - 0.12 = 0.1 (still moving).
-        float currentAmp = 0.18 + (ampNoise * 0.06) + (i * 0.02);
+        // 1. Amplitude (Height) [MAINTAINED]
+        // Keeps the wave always moving (min height 0.07), preventing flat lines.
+        float swellNoise = sin(t * 0.3) + sin(t * 0.15 + i);
+        float currentAmp = 0.12 + (swellNoise * 0.05);
 
-        float offset = i * 0.3;
+        // 2. Wave Frequency
+        float waveFreq = 3.2;
 
-        float surfaceRipple = sin((uv.x - t * 0.1) * 6.0 + (i * 5.0)) * 0.002;
-        float mainWave = sin((uv.x - t * 0.08) * 2.0 + offset) * currentAmp;
-        float waveY = 0.5 + mainWave + surfaceRipple;
+        // 3. Sync & Separation [UPDATED]
+        // Instead of random drifting, we calculate a specific "Gap" size.
+        // sin(t * 0.2) oscillates slowly between -1 and 1.
+        // We normalize it to 0.0 -> 1.0, then scale to 0.35 (The Max Gap).
+        // Result: The waves gently breathe between Perfect Sync (0.0) and Slight Gap (0.35).
+        float driftCycle = sin(t * 0.2);
+        float gapSize = (driftCycle * 0.5 + 0.5) * 0.35;
+        float phaseOffset = i * gapSize; // Wave 0 has 0 offset, Wave 1 has gapSize offset.
+
+        float speed = 0.25;
+
+        // 4. Micro-Ripples
+        float ripples = sin((uv.x * 30.0) + (t * 2.0)) * 0.002;
+
+        // Main Wave Calculation
+        float mainWave = sin((uv.x * waveFreq) - (t * speed) + phaseOffset + ripples) * currentAmp;
+
+        float waveY = 0.5 + mainWave;
 
         // B. Masking
         float mask = smoothstep(waveY + edgeSoftness, waveY, uv.y);
