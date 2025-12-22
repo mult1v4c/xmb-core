@@ -1,10 +1,4 @@
 // ==========================================
-// CREDITS
-// PS3 Menu Effect by int_45h https://www.shadertoy.com/view/tXy3DK
-// PSP XMB by cosmicspace777 https://www.shadertoy.com/view/tft3WB
-// PS3 XMB by sharads https://www.shadertoy.com/view/7slcWj
-// XMB Wave Background by fchavonet https://github.com/fchavonet/creative_coding-xmb_wave_background
-// ==========================================
 // VERTEX SHADER
 // ==========================================
 const vertexShaderSource = `
@@ -27,9 +21,21 @@ uniform sampler2D uNightTexture;
 uniform float     uTimeMix;
 uniform float     uBrightness;
 uniform vec3      uColorFilter;
-uniform int       uWaveStyle; // 0=Original, 1=Classic, 2=PS3
+uniform int       uWaveStyle;    // 0=Original, 1=Classic, 2=PS3
+uniform int       uEnableBgTint; // 0=Waves Only, 1=Tint Background too
 
-// --- PS3 ---
+// ==========================================
+// BLEND MODE LIBRARY
+// ==========================================
+
+// SCREEN (Brightens - Best for that "Glassy" look on dark colors)
+vec3 blendScreen(vec3 base, vec3 blend) {
+    return 1.0 - ((1.0 - base) * (1.0 - blend));
+}
+
+// ==========================================
+// UTILS
+// ==========================================
 float hash12(vec2 p) {
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -57,7 +63,6 @@ float get_stars(vec2 p, float a, float t) {
     vec2 pc = p - pg;
     vec2 k = vec2(0, 1);
     pc *= pc * pc * (3.0 - 2.0 * pc);
-
     float s = mix(
         mix(get_stars_rough(pg + k.xx), get_stars_rough(pg + k.yx), pc.x),
         mix(get_stars_rough(pg + k.xy), get_stars_rough(pg + k.yy), pc.x),
@@ -113,7 +118,7 @@ vec2 raymarch(vec3 o, vec3 d, float omega) {
     return vec2(a, max(1.0 - g, 0.0));
 }
 
-// --- CLASSIC ---
+// --- CLASSIC STYLE FUNCTIONS ---
 float calcComplexSine(vec2 uv, float speed, float frequency, float amplitude, float phaseShift, float verticalOffset, float lineWidth, float sharpness, bool invertFalloff) {
     float angle = uTime * speed * frequency * -1.0 + (phaseShift + uv.x) * 2.0;
     float waveY = sin(angle) * amplitude + verticalOffset;
@@ -128,10 +133,14 @@ float calcComplexSine(vec2 uv, float speed, float frequency, float amplitude, fl
     return pow(smoothVal, sharpness);
 }
 
-// --- ORIGINAL ---
-vec3 calcOriginalWaves(vec2 uv, vec3 themeColor) {
+// --- ORIGINAL STYLE FUNCTIONS (PSP) ---
+vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
     float baseY = 0.5;
-    vec3 accColor = vec3(0.0);
+    vec3 currentBackground = bg;
+
+    // --- SEPARATE OPACITY CONTROLS ---
+    float wave1Opacity = 0.4;
+    float wave2Opacity = 0.5;
 
     float brightness = length(themeColor);
     float boost = (brightness > 1.2) ? 0.8 : 1.2;
@@ -149,15 +158,12 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor) {
         // 2. PHASE OFFSET
         float offset = i * 0.3;
 
-        // 3. SURFACE RIPPLES (Adjusted)
-        // Reduced frequency to 6.0 (wider bumps)
-        // Reduced amplitude to 0.002 (barely visible)
+        // 3. SURFACE RIPPLES
         float surfaceWave = sin((uv.x - t * 0.1) * 6.0 + (i * 5.0)) * 0.002;
 
         // 4. MAIN WAVE
         float mainWave = sin((uv.x - t * 0.08) * 2.0 + offset) * currentAmp;
 
-        // Combine: Main + Subtle Ripple
         float waveY = baseY + mainWave + surfaceWave;
 
         // 5. RENDERING
@@ -167,14 +173,23 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor) {
         float gradFactor = clamp((waveY - uv.y) / waveY, 0.0, 1.0);
         float fade = pow(1.0 - gradFactor, 2.0);
 
+        // RAW WAVE COLOR
         vec3 wCol = mix(waveColorTop, waveColorBottom, gradFactor);
 
-        vec3 finalWave = wCol;
+        // --- BOOST INTENSITY ---
+        wCol *= 2.0;
 
-        float alpha = (brightness > 1.2) ? 0.25 : 0.5;
-        accColor += finalWave * mask * alpha * fade;
+        // --- BLEND MODE: SCREEN ---
+        vec3 blendedResult = blendScreen(currentBackground, wCol);
+
+        // --- APPLY SEPARATE OPACITY ---
+        float layerOpacity = (i == 0.0) ? wave1Opacity : wave2Opacity;
+
+        float finalAlpha = mask * fade * layerOpacity;
+
+        currentBackground = mix(currentBackground, blendedResult, finalAlpha);
     }
-    return accColor;
+    return currentBackground;
 }
 
 // --- MAIN ---
@@ -184,11 +199,12 @@ void main() {
     vec2 textureUV = vec2(uv.x, 1.0 - uv.y);
     vec4 dayColor = texture2D(uDayTexture, textureUV);
     vec4 nightColor = texture2D(uNightTexture, textureUV);
-    vec3 background = mix(dayColor.rgb, nightColor.rgb, uTimeMix);
 
+    vec3 background = mix(dayColor.rgb, nightColor.rgb, uTimeMix);
     vec3 finalColor = background;
 
     if (uWaveStyle == 0) {
+        // --- CLASSIC STYLE ---
         float intensity = 0.0;
         intensity += calcComplexSine(uv, 0.2, 0.20, 0.2, 0.0, 0.5, 0.1, 15.0, false);
         intensity += calcComplexSine(uv, 0.4, 0.40, 0.15, 0.0, 0.5, 0.1, 17.0, false);
@@ -200,10 +216,11 @@ void main() {
         finalColor += (vec3(1.0) * intensity * 0.5);
     }
     else if (uWaveStyle == 1) {
-        finalColor += calcOriginalWaves(uv, uColorFilter);
+        // ORIGINAL (PSP Style)
+        finalColor = calcOriginalWaves(uv, uColorFilter, finalColor);
     }
-
     else if (uWaveStyle == 2) {
+        // PS3 Style
         vec3 rayOrigin = vec3(0.0);
         vec3 rayDir = normalize(vec3((uv - 0.5) * vec2(uResolution.x/uResolution.y, 1.0), 1.0));
         vec2 mg = raymarch(rayOrigin, rayDir, 1.2);
@@ -212,7 +229,13 @@ void main() {
         finalColor += get_dust(uv, vec2(2000.0), mg.y) * 0.3;
     }
 
-    vec3 tint = mix(vec3(1.0), uColorFilter, 0.6);
+    // --- GLOBAL TINT LOGIC ---
+    vec3 tint = vec3(1.0);
+    // If enabled, calculate the tint based on average color
+    if (uEnableBgTint == 1) {
+        tint = mix(vec3(1.0), uColorFilter, 0.6);
+    }
+    // Apply Tint (if any) and Brightness
     finalColor = finalColor * tint * uBrightness;
 
     gl_FragColor = vec4(finalColor, 1.0);

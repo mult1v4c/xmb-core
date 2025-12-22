@@ -24,7 +24,7 @@ let loadedBgIndex = -1;
 
 // State
 let currentBgIndex = 1;
-let waveStyle = 0;
+let waveStyle = 1;
 let isAutoMonth = true;
 
 // Dynamic Color State
