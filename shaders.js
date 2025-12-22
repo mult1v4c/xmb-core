@@ -157,9 +157,7 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
     vec3 currentBackground = bg; // BACKGROUND IS UNTOUCHED
 
     // --- DETERMINE WAVE COLOR SOURCE ---
-    // FLIPPED LOGIC:
-    // 0 = Use Theme Color
-    // 1 = Use Pure White
+    // 0 = Use Theme Color, 1 = Use Pure White
     vec3 baseWaveColor = (uEnableBgTint == 0) ? themeColor : vec3(1.0);
 
     float brightness = length(baseWaveColor);
@@ -175,8 +173,14 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
         float t = uTime;
 
         // A. Geometry & Movement
-        float ampNoise = sin(t * 0.3) + sin(t * 0.1);
-        float currentAmp = 0.15 + (ampNoise * 0.10) + (i * 0.01);
+        // Adjusted to prevent the wave from flattening out completely
+        float ampNoise = sin(t * 0.3) + sin(t * 0.45);
+
+        // Base amplitude raised to 0.18.
+        // Noise multiplier reduced to 0.06.
+        // Even if ampNoise is -2.0, result is 0.18 - 0.12 = 0.1 (still moving).
+        float currentAmp = 0.18 + (ampNoise * 0.06) + (i * 0.02);
+
         float offset = i * 0.3;
 
         float surfaceRipple = sin((uv.x - t * 0.1) * 6.0 + (i * 5.0)) * 0.002;
