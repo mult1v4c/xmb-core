@@ -17,15 +17,17 @@ const totalBackgrounds = 34;
 let shaderProgram;
 let timeUniformLocation, resolutionUniformLocation, dayTextureLocation,
     nightTextureLocation, timeMixLocation, brightnessLocation,
-    colorFilterLocation, waveStyleLocation, mouseUniformLocation;
+    colorFilterLocation, waveStyleLocation, mouseUniformLocation,
+    bgTintLocation; // Added specific location for Tint toggle
 
 let currentTexture;
 let loadedBgIndex = -1;
 
 // State
 let currentBgIndex = 1;
-let waveStyle = 1;
+let waveStyle = 1; // Default to Original (PSP)
 let isAutoMonth = true;
+let enableBgTint = 0; // 0 = Use Theme Color, 1 = Pure White (Matches your Shader logic)
 
 // Dynamic Color State
 let currentThemeColor = [1.0, 1.0, 1.0]; // Default White
@@ -63,14 +65,12 @@ function compileShader(source, type) {
     return shader;
 }
 
-// --- COLOR ANALYSIS HELPER ---
+// --- COLOR ANALYSIS HELPER (FIXED) ---
 function analyzeImageColor(image) {
-    // 1. Create a tiny canvas to draw the image
     const tempCanvas = document.createElement('canvas');
     const ctx = tempCanvas.getContext('2d');
 
-    // We use a small size (e.g., 50x50) to get a decent average
-    // without processing millions of pixels.
+    // Use small size for performance
     tempCanvas.width = 50;
     tempCanvas.height = 50;
 
@@ -86,37 +86,19 @@ function analyzeImageColor(image) {
         b += data[i + 2];
     }
 
-    // 2. Average RGB (0.0 to 1.0)
+    // Average RGB (0.0 to 1.0)
     const avgR = (r / pixelCount) / 255;
     const avgG = (g / pixelCount) / 255;
     const avgB = (b / pixelCount) / 255;
-
-    // 3. Calculate Luminance (Perceived brightness)
-    // Formula: 0.299R + 0.587G + 0.114B
-    const luminance = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
-
-    // 4. Auto-Adjust Brightness
-    // If the image is very dark (low luminance), we boost the brightness.
-    // If it's bright, we stick to 1.0.
-    // Example: If luminance is 0.2, we might want 1.5x brightness.
-
-    let boost = 1.0;
-    if (luminance < 0.4) {
-        // Simple inverse scaling: darker images get more boost
-        // Cap it at 2.0x to prevent washout
-        boost = 1.0 + (0.5 - luminance) * 2.0;
-    }
-
     return {
         color: [avgR, avgG, avgB],
-        brightness: boost
+        brightness: 1.0
     };
 }
 
 function loadTexture(gl, url) {
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    // Placeholder while loading
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]));
 
     const image = new Image();
@@ -128,12 +110,12 @@ function loadTexture(gl, url) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-        // --- RUN AUTO COLOR ANALYSIS ---
+        // Run Analysis
         const analysis = analyzeImageColor(image);
         currentThemeColor = analysis.color;
         currentBrightnessBoost = analysis.brightness;
 
-        console.log(`Loaded BG. Color: [${currentThemeColor}], Brightness Boost: ${currentBrightnessBoost}`);
+        console.log(`Loaded BG. Color: [${currentThemeColor}], Brightness: ${currentBrightnessBoost}`);
     };
     image.src = url;
     return texture;
@@ -165,6 +147,7 @@ function initializeWebGL() {
     colorFilterLocation = context.getUniformLocation(shaderProgram, "uColorFilter");
     waveStyleLocation = context.getUniformLocation(shaderProgram, "uWaveStyle");
     mouseUniformLocation = context.getUniformLocation(shaderProgram, "uMouse");
+    bgTintLocation = context.getUniformLocation(shaderProgram, "uEnableBgTint"); // Added
 
     // Quad Buffer
     const buffer = context.createBuffer();
@@ -179,7 +162,6 @@ function initializeWebGL() {
 function updateBackground(index) {
     if (loadedBgIndex === index) return;
 
-    // Wrap around logic just in case
     if (index > totalBackgrounds) index = 1;
     if (index < 1) index = totalBackgrounds;
 
@@ -200,7 +182,7 @@ function renderFrame(timeMs) {
     // --- AUTO MONTH LOGIC ---
     if (isAutoMonth) {
         const date = new Date();
-        const monthIndex = date.getMonth() + 1; // 1-12
+        const monthIndex = date.getMonth() + 1;
         if (currentBgIndex !== monthIndex) {
             currentBgIndex = monthIndex;
         }
@@ -225,15 +207,13 @@ function renderFrame(timeMs) {
     }
 
     // --- UNIFORM UPDATES ---
-    context.uniform1f(timeMixLocation, 0.0); // Always "Day" (No mixing)
-
-    // Apply the auto-calculated brightness boost
+    context.uniform1f(timeMixLocation, 0.0);
     context.uniform1f(brightnessLocation, currentBrightnessBoost);
-
-    // Apply the auto-calculated average color tint
     context.uniform3f(colorFilterLocation, currentThemeColor[0], currentThemeColor[1], currentThemeColor[2]);
-
     context.uniform1i(waveStyleLocation, waveStyle);
+
+    // Pass the Tint Enable Flag (0=ThemeColor, 1=White)
+    context.uniform1i(bgTintLocation, enableBgTint);
 
     context.drawArrays(context.TRIANGLE_STRIP, 0, 4);
     requestAnimationFrame(renderFrame);
@@ -293,7 +273,6 @@ function initColorGrid() {
 
     autoBtn.addEventListener('click', () => {
         isAutoMonth = true;
-        // Trigger immediate update
         const date = new Date();
         currentBgIndex = date.getMonth() + 1;
         updateGridSelection();

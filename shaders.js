@@ -22,13 +22,12 @@ uniform float     uTimeMix;
 uniform float     uBrightness;
 uniform vec3      uColorFilter;
 uniform int       uWaveStyle;    // 0=Original, 1=Classic, 2=PS3
-uniform int       uEnableBgTint; // 0=Waves Only, 1=Tint Background too
+uniform int       uEnableBgTint; // 0=White Waves, 1=Colored Waves
 
 // ==========================================
 // BLEND MODE LIBRARY
 // ==========================================
 
-// SCREEN (Brightens - Best for that "Glassy" look on dark colors)
 vec3 blendScreen(vec3 base, vec3 blend) {
     return 1.0 - ((1.0 - base) * (1.0 - blend));
 }
@@ -135,60 +134,76 @@ float calcComplexSine(vec2 uv, float speed, float frequency, float amplitude, fl
 
 // --- ORIGINAL STYLE FUNCTIONS (PSP) ---
 vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
-    float baseY = 0.5;
-    vec3 currentBackground = bg;
+    // ==========================================
+    // 1. CONFIGURATION
+    // ==========================================
 
-    // --- SEPARATE OPACITY CONTROLS ---
-    float wave1Opacity = 0.4;
-    float wave2Opacity = 0.5;
+    // Gradient Opacity
+    float opacityTop = 0.5;
+    float opacityBottom = 0.0;
 
-    float brightness = length(themeColor);
-    float boost = (brightness > 1.2) ? 0.8 : 1.2;
+    // Intensity
+    float waveIntensity = 1.5;
 
-    vec3 waveColorTop = themeColor * boost;
-    vec3 waveColorBottom = themeColor * 0.6;
+    // Wave Shape
+    float edgeSoftness = 0.004;
 
+    // Color Spread
+    float colorShadowFactor = 0.0;
+
+    // ==========================================
+    // 2. SETUP
+    // ==========================================
+    vec3 currentBackground = bg; // BACKGROUND IS UNTOUCHED
+
+    // --- DETERMINE WAVE COLOR SOURCE ---
+    // FLIPPED LOGIC:
+    // 0 = Use Theme Color
+    // 1 = Use Pure White
+    vec3 baseWaveColor = (uEnableBgTint == 0) ? themeColor : vec3(1.0);
+
+    float brightness = length(baseWaveColor);
+    float themeBoost = (brightness > 1.2) ? 0.8 : 1.2;
+
+    vec3 colTop = baseWaveColor * themeBoost;
+    vec3 colBot = baseWaveColor * colorShadowFactor;
+
+    // ==========================================
+    // 3. WAVE LOOP
+    // ==========================================
     for (float i = 0.0; i < 2.0; i++) {
         float t = uTime;
 
-        // 1. DYNAMIC AMPLITUDE
+        // A. Geometry & Movement
         float ampNoise = sin(t * 0.3) + sin(t * 0.1);
         float currentAmp = 0.15 + (ampNoise * 0.10) + (i * 0.01);
-
-        // 2. PHASE OFFSET
         float offset = i * 0.3;
 
-        // 3. SURFACE RIPPLES
-        float surfaceWave = sin((uv.x - t * 0.1) * 6.0 + (i * 5.0)) * 0.002;
-
-        // 4. MAIN WAVE
+        float surfaceRipple = sin((uv.x - t * 0.1) * 6.0 + (i * 5.0)) * 0.002;
         float mainWave = sin((uv.x - t * 0.08) * 2.0 + offset) * currentAmp;
+        float waveY = 0.5 + mainWave + surfaceRipple;
 
-        float waveY = baseY + mainWave + surfaceWave;
-
-        // 5. RENDERING
-        float edgeSoftness = 0.004;
+        // B. Masking
         float mask = smoothstep(waveY + edgeSoftness, waveY, uv.y);
 
+        // C. Gradient Calculations
         float gradFactor = clamp((waveY - uv.y) / waveY, 0.0, 1.0);
-        float fade = pow(1.0 - gradFactor, 2.0);
 
-        // RAW WAVE COLOR
-        vec3 wCol = mix(waveColorTop, waveColorBottom, gradFactor);
+        // Interpolate Opacity
+        float currentOpacity = mix(opacityTop, opacityBottom, gradFactor);
 
-        // --- BOOST INTENSITY ---
-        wCol *= 2.0;
+        // Interpolate Color
+        vec3 wCol = mix(colTop, colBot, gradFactor);
 
-        // --- BLEND MODE: SCREEN ---
-        vec3 blendedResult = blendScreen(currentBackground, wCol);
+        // D. Composition (Screen Blend)
+        vec3 boostColor = clamp(wCol * waveIntensity, 0.0, 1.0);
+        vec3 blendedResult = blendScreen(currentBackground, boostColor);
 
-        // --- APPLY SEPARATE OPACITY ---
-        float layerOpacity = (i == 0.0) ? wave1Opacity : wave2Opacity;
-
-        float finalAlpha = mask * fade * layerOpacity;
-
+        // Final Mix
+        float finalAlpha = mask * currentOpacity;
         currentBackground = mix(currentBackground, blendedResult, finalAlpha);
     }
+
     return currentBackground;
 }
 
@@ -229,14 +244,8 @@ void main() {
         finalColor += get_dust(uv, vec2(2000.0), mg.y) * 0.3;
     }
 
-    // --- GLOBAL TINT LOGIC ---
-    vec3 tint = vec3(1.0);
-    // If enabled, calculate the tint based on average color
-    if (uEnableBgTint == 1) {
-        tint = mix(vec3(1.0), uColorFilter, 0.6);
-    }
-    // Apply Tint (if any) and Brightness
-    finalColor = finalColor * tint * uBrightness;
+    // --- GLOBAL BRIGHTNESS ---
+    finalColor = finalColor * uBrightness;
 
     gl_FragColor = vec4(finalColor, 1.0);
 }
