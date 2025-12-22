@@ -138,25 +138,36 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
     // 1. CONFIGURATION
     // ==========================================
 
-    // Gradient Opacity
-    float opacityTop = 0.5;
-    float opacityBottom = 0.0;
+    // --- VISUALS ---
+    float opacityTop        = 0.5;   // Opacity at the peak of the wave
+    float opacityBottom     = 0.0;   // Opacity at the bottom of the gradient
+    float waveIntensity     = 1.5;   // Brightness multiplier for the wave color
+    float edgeSoftness      = 0.004; // Antialiasing for the wave edge
+    float colorShadowFactor = 0.0;   // How dark the bottom color gets (0.0 = Black/None)
 
-    // Intensity
-    float waveIntensity = 1.5;
+    // --- MAIN WAVE PHYSICS ---
+    float mainWaveFreq      = 3.2;   // "Width" of the wave (3.2 fits ~1 hump on screen)
+    float mainWaveSpeed     = 0.15;  // How fast the main wave crawls left-to-right
+    float ampBase           = 0.15;  // Minimum height of the wave
+    float ampVariance       = 0.05;  // How much the height swells up/down
+    float swellSpeed        = 0.3;   // Speed of the height breathing cycle
 
-    // Wave Shape
-    float edgeSoftness = 0.004;
+    // --- SUB-WAVE PHYSICS (The "Gliding Bump") ---
+    float subWaveFreq       = 4.0;   // Width of the gliding bump
+    float subWaveSpeed      = 0.6;   // Speed of the bump (should be != mainSpeed)
+    float subWaveAmp        = 0.02;  // Height of the bump (0.02 is subtle)
+    float subWaveOffset     = 1.2;   // Offset to de-sync bump between layers (i * val)
 
-    // Color Spread
-    float colorShadowFactor = 0.0;
+    // --- SYNC & DRIFT (Elastic Partner Logic) ---
+    float driftSpeed        = 0.2;   // How fast they move apart/together
+    float driftMaxGap       = 0.08;  // Maximum distance between the two waves
 
     // ==========================================
     // 2. SETUP
     // ==========================================
-    vec3 currentBackground = bg; // BACKGROUND IS UNTOUCHED
+    vec3 currentBackground = bg;
 
-    // --- DETERMINE WAVE COLOR SOURCE ---
+    // Determine Wave Color
     // 0 = Use Theme Color, 1 = Use Pure White
     vec3 baseWaveColor = (uEnableBgTint == 0) ? themeColor : vec3(1.0);
 
@@ -172,48 +183,37 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
     for (float i = 0.0; i < 2.0; i++) {
         float t = uTime;
 
-        // A. Geometry & Movement
+        // --- A. AMPLITUDE CALCULATION ---
+        // Calculates the breathing height of the wave
+        float swellNoise = sin(t * swellSpeed) + sin(t * (swellSpeed * 0.5) + i);
+        float currentAmp = ampBase + (swellNoise * ampVariance);
 
-        // 1. Amplitude (Height) [MAINTAINED]
-        // Keeps the wave always moving (min height 0.07), preventing flat lines.
-        float swellNoise = sin(t * 0.3) + sin(t * 0.15 + i);
-        float currentAmp = 0.12 + (swellNoise * 0.05);
+        // --- B. SYNC & DRIFT CALCULATION ---
+        // Calculates the gap between the two wave layers
+        float driftCycle = sin(t * driftSpeed);
+        float gapSize    = (driftCycle * 0.5 + 0.5) * driftMaxGap;
+        float phaseOffset = i * gapSize;
 
-        // 2. Wave Frequency
-        float waveFreq = 3.2;
+        // --- C. SUB-WAVE (GLIDING BUMP) ---
+        // The secondary shape that rides along the main wave
+        float subWave = sin((uv.x * subWaveFreq) - (t * subWaveSpeed) + (i * subWaveOffset)) * subWaveAmp;
 
-        // 3. Sync & Separation [UPDATED]
-        // Instead of random drifting, we calculate a specific "Gap" size.
-        // sin(t * 0.2) oscillates slowly between -1 and 1.
-        // We normalize it to 0.0 -> 1.0, then scale to 0.35 (The Max Gap).
-        // Result: The waves gently breathe between Perfect Sync (0.0) and Slight Gap (0.35).
-        float driftCycle = sin(t * 0.2);
-        float gapSize = (driftCycle * 0.5 + 0.5) * 0.35;
-        float phaseOffset = i * gapSize; // Wave 0 has 0 offset, Wave 1 has gapSize offset.
+        // --- D. MAIN WAVE CALCULATION ---
+        // The primary crawling sine wave
+        float mainWave = sin((uv.x * mainWaveFreq) - (t * mainWaveSpeed) + phaseOffset);
 
-        float speed = 0.25;
+        // Combine: Base Y + (Main Wave * Amplitude) + Sub-Wave
+        float waveY = 0.5 + (mainWave * currentAmp) + subWave;
 
-        // 4. Micro-Ripples
-        float ripples = sin((uv.x * 30.0) + (t * 2.0)) * 0.002;
-
-        // Main Wave Calculation
-        float mainWave = sin((uv.x * waveFreq) - (t * speed) + phaseOffset + ripples) * currentAmp;
-
-        float waveY = 0.5 + mainWave;
-
-        // B. Masking
+        // --- E. RENDERING (Masking & Gradient) ---
         float mask = smoothstep(waveY + edgeSoftness, waveY, uv.y);
-
-        // C. Gradient Calculations
         float gradFactor = clamp((waveY - uv.y) / waveY, 0.0, 1.0);
 
-        // Interpolate Opacity
+        // Interpolate Opacity & Color
         float currentOpacity = mix(opacityTop, opacityBottom, gradFactor);
-
-        // Interpolate Color
         vec3 wCol = mix(colTop, colBot, gradFactor);
 
-        // D. Composition (Screen Blend)
+        // Composition (Screen Blend)
         vec3 boostColor = clamp(wCol * waveIntensity, 0.0, 1.0);
         vec3 blendedResult = blendScreen(currentBackground, boostColor);
 
