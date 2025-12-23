@@ -139,11 +139,11 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
     // ==========================================
 
     // --- VISUALS ---
-    float opacityTop        = 0.5;   // Opacity at the peak of the wave
+    float opacityTop        = 0.3;   // Opacity at the peak of the wave
     float opacityBottom     = 0.0;   // Opacity at the bottom of the gradient
     float waveIntensity     = 1.5;   // Brightness multiplier for the wave color
     float edgeSoftness      = 0.004; // Antialiasing for the wave edge
-    float colorShadowFactor = 0.5;   // How dark the bottom color gets (0.0 = Black/None)
+    float gradientEase      = 0.7;   // Wave gradient falloff
 
     // --- MAIN WAVE PHYSICS ---
     float mainWaveFreq      = 3.2;   // "Width" of the wave (3.2 fits ~1 hump on screen)
@@ -175,7 +175,7 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
     float themeBoost = (brightness > 1.2) ? 0.8 : 1.2;
 
     vec3 colTop = baseWaveColor * themeBoost;
-    vec3 colBot = baseWaveColor * colorShadowFactor;
+    vec3 colBot = vec3(0.0);
 
     // ==========================================
     // 3. WAVE LOOP
@@ -207,7 +207,8 @@ vec3 calcOriginalWaves(vec2 uv, vec3 themeColor, vec3 bg) {
 
         // --- E. RENDERING (Masking & Gradient) ---
         float mask = smoothstep(waveY + edgeSoftness, waveY, uv.y);
-        float gradFactor = clamp((waveY - uv.y) / waveY, 0.0, 1.0);
+        float rawGrad = clamp((waveY - uv.y) / waveY, 0.0, 1.0);
+        float gradFactor = pow(rawGrad, gradientEase);
 
         // Interpolate Opacity & Color
         float currentOpacity = mix(opacityTop, opacityBottom, gradFactor);
