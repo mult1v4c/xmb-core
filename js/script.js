@@ -1,3 +1,9 @@
+// ==========================================
+// IMPORTS (Modular Shader System)
+// ==========================================
+import { assembleFragmentShader, ShaderStyles } from './shaders/assembler.js';
+import { vertexShaderSource } from './shaders/utils.js';
+
 /*******************************
 * XMB WAVE BACKGROUND BEHAVIOR *
 *******************************/
@@ -18,12 +24,11 @@ const CONFIG = {
     FILE_PREFIX: "bg_",
     FILE_EXT: ".bmp",
 
-    // Safety limit: Stop checking after this many files to prevent infinite loops
-    // if something goes wrong.
+    // Safety: Stop checking after this many files
     MAX_CHECK_LIMIT: 100,
 
-    // Color Analysis
-    ANALYSIS_SIZE: 50,
+    // Analysis
+    ANALYSIS_SIZE: 50, // Size of temp canvas for color averaging
 
     // Interaction
     MOUSE_SMOOTHING: 0.05,
@@ -36,19 +41,19 @@ const CONFIG = {
 // 2. STATE & GLOBALS
 // ==========================================
 let shaderProgram;
-let locations = {};
+let locations = {}; // Grouped Uniform Locations
 
 let currentTexture;
-let blackTexture;
+let blackTexture;   // For debug mode
 let loadedBgIndex = -1;
 
 // Application State
 let state = {
-    totalBackgrounds: 0, // [NEW] Will be detected automatically
-    bgIndex: 1,
-    waveStyle: 1,
-    isAutoMonth: true,
-    enableBgTint: 1,
+    totalBackgrounds: 0, // Auto-detected
+    bgIndex: 8,
+    waveStyle: 0,        // Default ID (Matches Original/PSP)
+    isAutoMonth: false,
+    enableBgTint: 1,     // 1 = Theme Color, 0 = White
     isDebugBlack: false,
     themeColor: [1.0, 1.0, 1.0],
     brightnessBoost: 1.0
@@ -67,7 +72,7 @@ function getTextureUrl(index) {
     return `${CONFIG.TEXTURE_PATH}${CONFIG.FILE_PREFIX}${bgStr}${CONFIG.FILE_EXT}`;
 }
 
-// Tries to load images sequentially until one fails.
+// Auto-Discovery: Checks for files bg_01...bg_N until 404
 async function discoverBackgrounds() {
     console.log("Scanning for backgrounds...");
     let count = 0;
@@ -85,7 +90,7 @@ async function discoverBackgrounds() {
         if (exists) {
             count++;
         } else {
-            break;
+            break; // Stop at first missing file
         }
     }
 
@@ -174,8 +179,12 @@ function loadTexture(gl, url) {
 // 4. INITIALIZATION
 // ==========================================
 function initializeWebGL() {
+    // 1. GENERATE SHADERS via Assembler
+    // This pulls all your modular style files together into one string
+    const fragmentSource = assembleFragmentShader();
+
     const vs = compileShader(vertexShaderSource, context.VERTEX_SHADER);
-    const fs = compileShader(fragmentShaderSource, context.FRAGMENT_SHADER);
+    const fs = compileShader(fragmentSource, context.FRAGMENT_SHADER);
 
     shaderProgram = context.createProgram();
     context.attachShader(shaderProgram, vs);
@@ -187,12 +196,12 @@ function initializeWebGL() {
     }
     context.useProgram(shaderProgram);
 
-    // Create Permanent Black Texture
+    // 2. SETUP TEXTURES
     blackTexture = context.createTexture();
     context.bindTexture(context.TEXTURE_2D, blackTexture);
     context.texImage2D(context.TEXTURE_2D, 0, context.RGBA, 1, 1, 0, context.RGBA, context.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]));
 
-    // Store Locations in Object
+    // 3. GET LOCATIONS
     locations = {
         position:    context.getAttribLocation(shaderProgram, "aVertexPosition"),
         time:        context.getUniformLocation(shaderProgram, "uTime"),
@@ -207,7 +216,7 @@ function initializeWebGL() {
         bgTint:      context.getUniformLocation(shaderProgram, "uEnableBgTint")
     };
 
-    // Setup Geometry
+    // 4. SETUP GEOMETRY
     const buffer = context.createBuffer();
     context.bindBuffer(context.ARRAY_BUFFER, buffer);
     context.bufferData(context.ARRAY_BUFFER, CONFIG.QUAD_VERTICES, context.STATIC_DRAW);
@@ -220,7 +229,7 @@ function initializeWebGL() {
 function updateBackground(index) {
     if (loadedBgIndex === index) return;
 
-    // Clamp Index based on Detected Total
+    // Check against detected total
     if (state.totalBackgrounds > 0) {
         if (index > state.totalBackgrounds) index = 1;
         if (index < 1) index = state.totalBackgrounds;
@@ -236,6 +245,7 @@ function updateBackground(index) {
 function renderFrame(timeMs) {
     context.clear(context.COLOR_BUFFER_BIT);
 
+    // Mouse Smoothing
     mouse.x += (targetMouse.x - mouse.x) * CONFIG.MOUSE_SMOOTHING;
     mouse.y += (targetMouse.y - mouse.y) * CONFIG.MOUSE_SMOOTHING;
 
@@ -243,7 +253,6 @@ function renderFrame(timeMs) {
     if (!state.isDebugBlack && state.isAutoMonth) {
         const date = new Date();
         const monthIndex = date.getMonth() + 1;
-        // Only use Auto Month if we actually have enough backgrounds!
         if (state.totalBackgrounds >= monthIndex && state.bgIndex !== monthIndex) {
             state.bgIndex = monthIndex;
         }
@@ -258,6 +267,7 @@ function renderFrame(timeMs) {
     context.uniform2f(locations.resolution, canvas.width, canvas.height);
     context.uniform2f(locations.mouse, mouse.x, mouse.y);
 
+    // Handle Debug Black Screen
     let renderTexture = state.isDebugBlack ? blackTexture : currentTexture;
     let renderTint    = state.isDebugBlack ? 0 : state.enableBgTint;
 
@@ -303,24 +313,49 @@ if (settingsBtn && settingsSidebar) {
     });
 }
 
-// Style Buttons
-const styleBtns = document.querySelectorAll('.style-list .menu-item');
+// --- STYLE LIST (AUTO-GENERATED) ---
+const styleListContainer = document.querySelector('.style-list');
+
+function initStyleList() {
+    if (!styleListContainer) return;
+    styleListContainer.innerHTML = '';
+
+    // [UPDATED] Sort styles by ID (Ascending: 0, 1, 2...)
+    // We use [...ShaderStyles] to create a copy so we don't mess up the original array order
+    const sortedStyles = [...ShaderStyles].sort((a, b) => a.id - b.id);
+
+    sortedStyles.forEach(style => {
+        const btn = document.createElement('div');
+        btn.className = 'menu-item';
+        btn.dataset.value = style.id;
+
+        const span = document.createElement('span');
+        span.textContent = style.name;
+
+        btn.appendChild(span);
+
+        btn.addEventListener('click', () => {
+            state.waveStyle = style.id;
+            updateStyleSelection();
+        });
+
+        styleListContainer.appendChild(btn);
+    });
+
+    updateStyleSelection();
+}
+
 function updateStyleSelection() {
-    styleBtns.forEach(btn => {
+    const btns = styleListContainer.querySelectorAll('.menu-item');
+    btns.forEach(btn => {
         btn.classList.remove('active');
         if (parseInt(btn.dataset.value) === state.waveStyle) {
             btn.classList.add('active');
         }
     });
 }
-styleBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        state.waveStyle = parseInt(e.target.dataset.value, 10);
-        updateStyleSelection();
-    });
-});
 
-// Color Grid
+// --- COLOR GRID ---
 const colorGrid = document.getElementById('color-grid');
 
 function initColorGrid() {
@@ -340,8 +375,7 @@ function initColorGrid() {
     });
     colorGrid.appendChild(autoBtn);
 
-    // BG Buttons
-    // [UPDATED] Loop based on Detected Total
+    // BG Buttons (Loop based on auto-detected total)
     for (let i = 1; i <= state.totalBackgrounds; i++) {
         const btn = document.createElement('div');
         btn.className = 'menu-item';
@@ -349,7 +383,6 @@ function initColorGrid() {
 
         const preview = document.createElement('div');
         preview.className = 'color-preview';
-
         preview.style.backgroundImage = `url('${getTextureUrl(i)}')`;
         preview.style.backgroundSize = 'cover';
 
@@ -383,9 +416,12 @@ function updateGridSelection() {
 // ==========================================
 // 7. BOOTSTRAP
 // ==========================================
-// [UPDATED] Run discovery first, then initialize everything else
+// 1. Scan for backgrounds
+// 2. Build UI (Colors & Styles)
+// 3. Start WebGL
 discoverBackgrounds().then(() => {
     initColorGrid();
+    initStyleList();
     initializeWebGL();
 });
 
