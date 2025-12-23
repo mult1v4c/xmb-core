@@ -8,8 +8,9 @@ export const StyleClassic = {
             float opacityBottom = 0.0;
             float waveIntensity = 1.3;
             float edgeSoftness = 0.003;
-            float fadeWidth = 0.18;
-            float gradientEase = 1.5;
+            float fadeWidth = 0.5;
+            float gradientEase = 0.3;
+            float mainWaveTint = 0.8;
 
             // --- SHADOW CONFIG ---
             float shadowStrength = 0.1;
@@ -28,7 +29,11 @@ export const StyleClassic = {
             float rippleSpeed = 0.15;
 
             vec3 currentBackground = bg;
-            vec3 baseWaveColor = (uEnableBgTint == 1) ? themeColor : vec3(1.0);
+
+            vec3 mixedWaveColor = mix(vec3(1.0), themeColor, mainWaveTint);
+
+            // Apply based on global toggle
+            vec3 baseWaveColor = (uEnableBgTint == 1) ? mixedWaveColor : vec3(1.0);
 
             float brightness = length(baseWaveColor);
             float themeBoost = (brightness > 1.2) ? 0.8 : 1.2;
