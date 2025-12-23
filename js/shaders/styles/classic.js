@@ -54,17 +54,14 @@ export const StyleClassic = {
 
                 float waveY = waveCenter + (wave * baseAmp * rotation) + ripple;
 
-                // --- 2.5 SHADOW LOGIC (Bottom Waves Only) ---
+                // --- SHADOW LOGIC ---
                 if (isTop < 0.5) {
                     float shadowDist = waveY - uv.y;
 
-                    // [FIX] Strictly draw shadow BELOW the wave (shadowDist > 0.0)
-                    // Previous code allowed bleed (-edgeSoftness) which caused the double line.
                     if (shadowDist > 0.0 && shadowDist < shadowWidth) {
                         float shadowGrad = 1.0 - clamp(shadowDist / shadowWidth, 0.0, 1.0);
                         shadowGrad = pow(shadowGrad, 2.0);
 
-                        // Fade in from 0.0 to softness (prevents hard line at contact)
                         float shadowMask = smoothstep(0.0, edgeSoftness, shadowDist);
                         float finalShadowAlpha = shadowStrength * shadowGrad * shadowMask;
 
