@@ -180,7 +180,6 @@ function loadTexture(gl, url) {
 // ==========================================
 function initializeWebGL() {
     // 1. GENERATE SHADERS via Assembler
-    // This pulls all your modular style files together into one string
     const fragmentSource = assembleFragmentShader();
 
     const vs = compileShader(vertexShaderSource, context.VERTEX_SHADER);
@@ -320,8 +319,6 @@ function initStyleList() {
     if (!styleListContainer) return;
     styleListContainer.innerHTML = '';
 
-    // [UPDATED] Sort styles by ID (Ascending: 0, 1, 2...)
-    // We use [...ShaderStyles] to create a copy so we don't mess up the original array order
     const sortedStyles = [...ShaderStyles].sort((a, b) => a.id - b.id);
 
     sortedStyles.forEach(style => {

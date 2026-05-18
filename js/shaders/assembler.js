@@ -1,14 +1,12 @@
 import { commonGLSL } from './utils.js';
 import { StyleClassic } from './styles/classic.js';
 import { StyleOriginal } from './styles/original.js';
-import { StylePS3 } from './styles/ps3.js';
 
 // --- REGISTER STYLES HERE ---
 // To add a new style, import it above and add it to this array.
 export const ShaderStyles = [
     StyleClassic,
-    StyleOriginal,
-    StylePS3
+    StyleOriginal
 ];
 
 export function assembleFragmentShader() {
